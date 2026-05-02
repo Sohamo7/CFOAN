@@ -1,7 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
 
     // ---> PASTE YOUR API KEY HERE <---
-    const API_KEY = 'AIzaSyDypvNMqjayqj6zT-Q5NiePpYKeC5qUpgg'; 
+    const API_KEY = 'INSERT_YOUR_API_KEY_HERE'; 
 
     const statusEl = document.getElementById('status');
     const userNameInput = document.getElementById('userName');
