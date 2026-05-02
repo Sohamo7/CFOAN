@@ -1,7 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
 
     // ---> PASTE YOUR API KEY HERE <---
-    const API_KEY = 'INSERT_YOUR_API_KEY_HERE'; 
+    const API_KEY = 'AIzaSyDypvNMqjayqj6zT-Q5NiePpYKeC5qUpgg'; 
 
     const statusEl = document.getElementById('status');
     const userNameInput = document.getElementById('userName');
@@ -39,14 +39,29 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- FEATURE 1: SCHEDULE MEETING ---
+    // --- FEATURE 1: SCHEDULE MEETING (FIXED TIMEZONES) ---
     document.getElementById('processEmail').addEventListener('click', async () => {
         statusEl.innerText = "Reading email...";
+        
         const emailText = await getEmailText();
-        if (!emailText || emailText.includes("ERROR")) return statusEl.innerText = "Please open an email first.";
+        if (!emailText || emailText.includes("ERROR")) {
+            statusEl.innerText = "Please open an email first.";
+            return;
+        }
 
-        statusEl.innerText = "Analyzing dates...";
-        const prompt = `You are a scheduling assistant. Extract meeting details from this email. Return ONLY a valid JSON object. No markdown. Keys: "title" (string), "details" (string), "start_date" (format: YYYYMMDDTHHMMSSZ), "end_date" (format: YYYYMMDDTHHMMSSZ). Assume current year is 2026. Email: ${emailText}`;
+        statusEl.innerText = "Analyzing dates with AI...";
+
+        // 1. Get the actual current date and timezone from the user's browser
+        const today = new Date().toLocaleString();
+        const userTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        
+        // 2. Pass this exact context to the AI so it stops guessing
+        const prompt = `You are a scheduling assistant. Extract meeting details from this email. Return ONLY a valid JSON object. No markdown. 
+        Keys: "title" (string), "details" (string), "start_date" (format: YYYYMMDDTHHMMSS), "end_date" (format: YYYYMMDDTHHMMSS). 
+        CRITICAL RULES: 
+        - Today's date/time is ${today} (${userTimeZone}). Resolve relative days like "tomorrow" or "next Tuesday" based on this exact date.
+        - DO NOT append a 'Z' to the end of the timestamps. Use local time format exactly as YYYYMMDDTHHMMSS.
+        Email: ${emailText}`;
 
         try {
             const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${API_KEY}`, {
@@ -57,11 +72,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const data = await response.json();
             if (data.error) throw new Error(data.error.message);
-            
-            // SAFETY CHECK: Ensure the AI actually returned text
-            if (!data.candidates || !data.candidates[0].content) {
-                throw new Error("AI returned no data (Possible Safety Block or Rate Limit).");
-            }
 
             let aiText = data.candidates[0].content.parts[0].text.replace(/```json/gi, '').replace(/```/g, '').trim();
             const meetingData = JSON.parse(aiText);
@@ -70,6 +80,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const calUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(meetingData.title)}&dates=${meetingData.start_date}/${meetingData.end_date}&details=${encodeURIComponent(meetingData.details)}`;
             chrome.tabs.create({ url: calUrl });
             statusEl.innerText = "Done!";
+
         } catch (error) {
             statusEl.innerText = "Error: " + error.message;
         }
